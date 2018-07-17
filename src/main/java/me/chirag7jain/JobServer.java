@@ -41,7 +41,7 @@ public class JobServer {
 
         group = new NioEventLoopGroup(this.numThreads);
 
-        try{
+        try {
             ServerBootstrap serverBootstrap;
             RequestHandler requestHandler;
             ChannelFuture channelFuture;
