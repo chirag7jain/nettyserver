@@ -10,7 +10,7 @@ import java.net.InetSocketAddress;
 import java.security.NoSuchAlgorithmException;
 
 public class MessageVerifierTest {
-    private static final int SingleRequestTestPort = 8080;
+    private static final int SingleRequestTestPort = 8070;
     private static final int MultiRequestTestPort = 8090;
     private static final int SingleRequestFailureTestPort = 8080;
 

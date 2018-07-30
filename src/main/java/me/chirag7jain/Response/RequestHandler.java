@@ -5,51 +5,75 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.util.AttributeKey;
 import io.netty.util.CharsetUtil;
 import org.apache.logging.log4j.Logger;
 
 import java.net.InetSocketAddress;
 
 public class RequestHandler extends ChannelInboundHandlerAdapter {
-    private ResponseManager responseManager;
-    private Logger logger;
+    private final ResponseManager responseManager;
+    private final Logger logger;
+    private final AttributeKey<StringBuilder> dataKey;
 
     public RequestHandler(ResponseManager responseManager, Logger logger) {
         this.responseManager = responseManager;
         this.logger = logger;
+        this.dataKey = AttributeKey.valueOf("dataBuffer");
     }
 
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+    public void channelRead(ChannelHandlerContext ctx, Object msg) {
         ByteBuf byteBuf;
-        String data, hostAddress;
+        String hostAddress;
+        StringBuilder dataBuffer;
+        boolean allocBuf;
+
+        dataBuffer = ctx.attr(dataKey).get();
+        allocBuf = dataBuffer == null;
+
+        if (allocBuf) {
+            dataBuffer = new StringBuilder();
+        }
 
         byteBuf = (ByteBuf) msg;
-        data = byteBuf.toString(CharsetUtil.UTF_8);
+        dataBuffer.append(byteBuf.toString(CharsetUtil.UTF_8));
         hostAddress = ((InetSocketAddress) ctx.channel().remoteAddress()).getAddress().getHostAddress();
 
-        if (!data.isEmpty()) {
-            String reply;
+        if (byteBuf.readableBytes() < 0) {
+            this.logger.info(String.format("Data received from %s", hostAddress));
+        }
 
-            this.logger.info(String.format("Data received %s from %s", data, hostAddress));
+        if (allocBuf) {
+            ctx.attr(dataKey).set(dataBuffer);
+        }
+
+        ctx.channel().read();
+    }
+
+    @Override
+    public void channelReadComplete(ChannelHandlerContext ctx) {
+        String data;
+
+        data = ctx.attr(dataKey).get().toString();
+
+        if (data.length() > 0) {
+            String reply, hostAddress;
+
+            hostAddress = ((InetSocketAddress) ctx.channel().remoteAddress()).getAddress().getHostAddress();
+            logger.info(String.format("Data received %s from %s", data, hostAddress));
             reply = this.responseManager.reply(data);
 
             if (reply != null) {
-                ctx.write(Unpooled.copiedBuffer(reply, CharsetUtil.UTF_8));
+                ctx.writeAndFlush(Unpooled.copiedBuffer(reply, CharsetUtil.UTF_8));
             }
         }
-        else {
-            logger.info(String.format("NO Data received from %s", hostAddress));
-        }
+
+        ctx.attr(dataKey).set(null);
     }
 
     @Override
-    public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
-        ctx.writeAndFlush(Unpooled.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE);
-    }
-
-    @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         this.logger.info(String.format("Received Exception %s", cause.getMessage()));
         ctx.close();
     }
