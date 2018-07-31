@@ -50,6 +50,8 @@ public class RequestHandler extends ChannelInboundHandlerAdapter {
             ctx.attr(dataKey).set(dataBuffer);
         }
 
+        byteBuf.release();
+
         ctx.channel().read();
     }
 
