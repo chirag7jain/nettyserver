@@ -3,6 +3,7 @@ package me.chirag7jain.Response;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.AttributeKey;
@@ -11,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.net.InetSocketAddress;
 
+@ChannelHandler.Sharable
 public class RequestHandler extends ChannelInboundHandlerAdapter {
     private final ResponseManager responseManager;
     private final Logger logger;

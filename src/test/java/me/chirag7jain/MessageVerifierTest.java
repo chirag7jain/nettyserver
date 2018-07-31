@@ -2,6 +2,8 @@ package me.chirag7jain;
 
 import me.chirag7jain.Response.ResponseManager;
 
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Assertions;
 
@@ -10,93 +12,53 @@ import java.net.InetSocketAddress;
 import java.security.NoSuchAlgorithmException;
 
 public class MessageVerifierTest {
-    private static final int SingleRequestTestPort = 8070;
-    private static final int MultiRequestTestPort = 8090;
-    private static final int SingleRequestFailureTestPort = 8080;
+    private static final int PORT;
+    private static final InetSocketAddress INET_SOCKET_ADDRESS;
+    private static JobServer JOB_SERVER;
 
-    private JobServer setupServer(int port) {
-        ResponseManager responseManager;
-        MessageVerifier messageVerifier;
-
-        responseManager = new ResponseManager();
-        messageVerifier = new MessageVerifier();
-        responseManager.register(messageVerifier.getClass().getName(), messageVerifier);
-
-        return new JobServer(port, 10, responseManager);
+    static {
+        PORT = 8080;
+        INET_SOCKET_ADDRESS = new InetSocketAddress("localhost", PORT);
     }
 
     @Test
     public void singleRequestTest() {
-        InetSocketAddress inetSocketAddress;
-        JobServer jobServer;
-
-        jobServer = this.setupServer(SingleRequestTestPort);
-
-        new Thread(new TestServer(jobServer)).start();
-
         try {
-            Thread.sleep(200);
-
-            inetSocketAddress = new InetSocketAddress("localhost", SingleRequestTestPort);
-            Assertions.assertTrue(TestUtility.singleRequestTest(inetSocketAddress));
+            Assertions.assertTrue(TestUtility.singleRequestTest(INET_SOCKET_ADDRESS));
         }
-        catch (IOException | NoSuchAlgorithmException | InterruptedException e) {
+        catch (IOException | NoSuchAlgorithmException e) {
             e.printStackTrace();
             Assertions.fail(e.getMessage());
         }
-
-//        jobServer.stopServer();
     }
 
     @Test
     public void singleRequestFailureTest() {
-        InetSocketAddress inetSocketAddress;
-        JobServer jobServer;
-
-        jobServer = this.setupServer(SingleRequestFailureTestPort);
-
-        new Thread(new TestServer(jobServer)).start();
-
         try {
-            Thread.sleep(200);
-
-            inetSocketAddress = new InetSocketAddress("localhost", SingleRequestFailureTestPort);
-            Assertions.assertFalse(TestUtility.singleRequestFailureTest(inetSocketAddress));
+            Assertions.assertFalse(TestUtility.singleRequestFailureTest(INET_SOCKET_ADDRESS));
         }
-        catch (IOException | NoSuchAlgorithmException | InterruptedException e) {
+        catch (IOException | NoSuchAlgorithmException e) {
             e.printStackTrace();
             Assertions.fail(e.getMessage());
         }
-
-//        jobServer.stopServer();
     }
 
     @Test
     public void multipleRequestTest() {
-        InetSocketAddress inetSocketAddress;
-        JobServer jobServer;
         int requestCount;
 
-        jobServer = this.setupServer(MultiRequestTestPort);
         requestCount = 5;
 
-        new Thread(new TestServer(jobServer)).start();
-
         try {
-            Thread.sleep(200);
-
-            inetSocketAddress = new InetSocketAddress("localhost", MultiRequestTestPort);
-            Assertions.assertEquals(requestCount, TestUtility.nRequestTest(inetSocketAddress, requestCount));
+            Assertions.assertEquals(requestCount, TestUtility.nRequestTest(INET_SOCKET_ADDRESS, requestCount));
         }
-        catch (IOException | NoSuchAlgorithmException | InterruptedException e) {
+        catch (IOException | NoSuchAlgorithmException e) {
             e.printStackTrace();
             Assertions.fail(e.getMessage());
         }
-
-//        jobServer.stopServer();
     }
 
-    private class TestServer implements Runnable {
+    private static class TestServer implements Runnable {
         private JobServer jobServer;
 
         private TestServer(JobServer jobServer) {
@@ -107,6 +69,36 @@ public class MessageVerifierTest {
         public void run() {
             jobServer.startServer();
         }
+    }
+
+    private static JobServer setupServer(int port) {
+        ResponseManager responseManager;
+        MessageVerifier messageVerifier;
+
+        responseManager = new ResponseManager();
+        messageVerifier = new MessageVerifier();
+        responseManager.register(messageVerifier.getClass().getName(), messageVerifier);
+
+        return new JobServer(port, 10, responseManager);
+    }
+
+    @BeforeAll
+    public static void setup() {
+        JOB_SERVER = setupServer(PORT);
+        new Thread(new TestServer(JOB_SERVER)).start();
+
+        try {
+            Thread.sleep(200);
+        }
+        catch (InterruptedException e) {
+            e.printStackTrace();
+            System.exit(0);
+        }
+    }
+
+    @AfterAll
+    public static void tearDown() {
+        JOB_SERVER.stopServer();
     }
 
 }

@@ -20,6 +20,8 @@ public class JobServer {
     private ResponseManager responseManager;
     private Logger logger;
     private int numThreads;
+    private Worker worker;
+    private Thread thread;
 
     /**
      * @param port - Server port
@@ -31,51 +33,66 @@ public class JobServer {
         this.numThreads = numThreads;
         this.responseManager = responseManager;
         this.logger = LogManager.getLogger();
+        this.worker = new Worker();
+        this.thread = new Thread(worker);
     }
 
     /**
      * Starts the server
      */
     public void startServer() {
-        EventLoopGroup group;
-
-        group = new NioEventLoopGroup(this.numThreads);
-
-        try {
-            ServerBootstrap serverBootstrap;
-            RequestHandler requestHandler;
-            ChannelFuture channelFuture;
-
-            serverBootstrap = new ServerBootstrap();
-            serverBootstrap.group(group);
-            serverBootstrap.channel(NioServerSocketChannel.class);
-            serverBootstrap.localAddress(new InetSocketAddress("::", this.port));
-
-            requestHandler = new RequestHandler(this.responseManager, this.logger);
-
-            serverBootstrap.childHandler(new ChannelInitializer<SocketChannel>() {
-                protected void initChannel(SocketChannel socketChannel) throws Exception {
-                    socketChannel.pipeline().addLast(requestHandler);
-                }
-            });
-
-            channelFuture = serverBootstrap.bind().sync();
-            channelFuture.channel().closeFuture().sync();
-        }
-        catch(Exception e){
-            this.logger.info(String.format("Unknown failure %s", e.getMessage()));
-        }
-        finally {
-            try {
-                group.shutdownGracefully().sync();
-            }
-            catch (InterruptedException e) {
-                this.logger.info(String.format("Error shutting down %s", e.getMessage()));
-            }
-
-        }
-
+        this.thread.start();
     }
 
+    public void stopServer() {
+        this.worker.stopServer();
+    }
 
+    private class Worker implements Runnable {
+        private EventLoopGroup group;
+        private ChannelFuture channelFuture;
+
+        @Override
+        public void run() {
+            this.group = new NioEventLoopGroup(numThreads);
+
+            try {
+                ServerBootstrap serverBootstrap;
+                RequestHandler requestHandler;
+
+                serverBootstrap = new ServerBootstrap();
+                serverBootstrap.group(group);
+                serverBootstrap.channel(NioServerSocketChannel.class);
+                serverBootstrap.localAddress(new InetSocketAddress("::", port));
+
+                requestHandler = new RequestHandler(responseManager, logger);
+
+                serverBootstrap.childHandler(new ChannelInitializer<SocketChannel>() {
+                    protected void initChannel(SocketChannel socketChannel) throws Exception {
+                        socketChannel.pipeline().addLast(requestHandler);
+                    }
+                });
+
+                this.channelFuture = serverBootstrap.bind().sync();
+                this.channelFuture.channel().closeFuture().sync();
+            }
+            catch(Exception e){
+                logger.info(String.format("Unknown failure %s", e.getMessage()));
+            }
+            finally {
+                try {
+                    this.group.shutdownGracefully().sync();
+                }
+                catch (InterruptedException e) {
+                    logger.info(String.format("Error shutting down %s", e.getMessage()));
+                }
+
+            }
+        }
+
+        private void stopServer() {
+            this.group.shutdownGracefully();
+            this.channelFuture.channel().close();
+        }
+    }
 }
